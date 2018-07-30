@@ -29,10 +29,6 @@ class ParserBase:
             raise RuntimeError(
                 "_markupbase.ParserBase must be subclassed")
 
-    def error(self, message):
-        raise NotImplementedError(
-            "subclasses of ParserBase must override error()")
-
     def reset(self):
         self.lineno = 1
         self.offset = 0
