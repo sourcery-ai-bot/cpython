@@ -1314,15 +1314,21 @@ _io__Buffered_truncate_impl(buffered *self, PyObject *pos)
     PyObject *res = NULL;
 
     CHECK_INITIALIZED(self)
+    CHECK_CLOSED(self, "truncate of closed file")
     if (!ENTER_BUFFERED(self))
         return NULL;
-
-    if (self->writable) {
-        res = buffered_flush_and_rewind_unlocked(self);
-        if (res == NULL)
-            goto end;
-        Py_CLEAR(res);
+    if (!self->writable) {
+        LEAVE_BUFFERED(self)
+        PyErr_SetString(PyExc_OSError, "truncate on read-only reader");
+        return NULL;
     }
+
+    res = buffered_flush_and_rewind_unlocked(self);
+    if (res == NULL) {
+        goto end;
+    }
+    Py_CLEAR(res);
+
     res = PyObject_CallMethodObjArgs(self->raw, _PyIO_str_truncate, pos, NULL);
     if (res == NULL)
         goto end;
