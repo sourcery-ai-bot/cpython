@@ -14,6 +14,18 @@ except ImportError:
     # but for those that require it we import here.
     nt = None
 
+try:
+    ntpath._getfinalpathname
+except AttributeError:
+    HAVE_GETFINALPATHNAME = False
+else:
+    HAVE_GETFINALPATHNAME = True
+
+
+ABSTFN = os.path.abspath(support.TESTFN)
+ABSTFNB = os.fsencode(ABSTFN)
+
+
 def tester(fn, wantResult):
     fn = fn.replace("\\", "\\\\")
     gotResult = eval(fn)
@@ -462,6 +474,133 @@ class TestNtpath(unittest.TestCase):
             b_final_path = nt._getfinalpathname(path.encode())
             self.assertIsInstance(b_final_path, bytes)
             self.assertGreater(len(b_final_path), 0)
+
+    def test_realpath_curdir(self):
+        tester("ntpath.realpath('.')", os.getcwd())
+        tester("ntpath.realpath('./.')", os.getcwd())
+        tester("ntpath.realpath('/'.join(['.'] * 100))", os.getcwd())
+        tester("ntpath.realpath('.\\.')", os.getcwd())
+        tester("ntpath.realpath('\\'.join(['.'] * 100))", os.getcwd())
+
+    def test_realpath_pardir(self):
+        tester("ntpath.realpath('..')", os.path.dirname(os.getcwd()))
+        tester("ntpath.realpath('../..')",
+               os.path.dirname(os.path.dirname(os.getcwd())))
+        tester("ntpath.realpath('/'.join(['..'] * 50))",
+               os.path.splitdrive(os.getcwd())[0] + '\\')
+        tester("ntpath.realpath('..\\..')",
+               os.path.dirname(os.path.dirname(os.getcwd())))
+        tester("ntpath.realpath('\\'.join(['..'] * 50))",
+               os.path.splitdrive(os.getcwd())[0] + '\\')
+
+    @support.skip_unless_symlink
+    @unittest.skipUnless(HAVE_GETFINALPATHNAME, 'need _getfinalpathname')
+    def test_realpath_basic(self):
+        try:
+            os.symlink(ABSTFN + "1", ABSTFN)
+            self.assertEqual(ntpath.realpath(ABSTFN), ABSTFN + "1")
+            self.assertEqual(ntpath.realpath(ABSTFNB),
+                             os.fsencode(ABSTFN + "1"))
+        finally:
+            support.unlink(ABSTFN)
+
+    @support.skip_unless_symlink
+    @unittest.skipUnless(HAVE_GETFINALPATHNAME, 'need _getfinalpathname')
+    def test_realpath_relative(self):
+        try:
+            os.symlink(os.path.relpath(ABSTFN + "1"), ABSTFN)
+            self.assertEqual(ntpath.realpath(ABSTFN), ABSTFN + "1")
+        finally:
+            support.unlink(ABSTFN)
+
+    @support.skip_unless_symlink
+    @unittest.skipUnless(HAVE_GETFINALPATHNAME, 'need _getfinalpathname')
+    def test_realpath_broken_symlinks(self):
+        try:
+            old_path = os.path.abspath('.')
+
+            os.mkdir(ABSTFN)
+            os.chdir(ABSTFN)
+            os.mkdir("subdir")
+            os.chdir("subdir")
+            os.symlink(".", "recursive")
+            os.symlink("..", "parent")
+            os.chdir("..")
+            os.symlink(".", "self")
+            os.symlink("missing", "broken")
+            os.symlink(r"broken\bar", "broken1")
+            os.symlink(r"self\self\broken", "broken2")
+            os.symlink(r"subdir\parent\subdir\parent\broken", "broken3")
+            os.symlink(ABSTFN + r"\broken", "broken4")
+            os.symlink(r"recursive\..\broken", "broken5")
+
+            self.assertEqual(ntpath.realpath("broken"), ABSTFN + r"\missing")
+            self.assertEqual(ntpath.realpath(r"broken\foo"), ABSTFN + r"\missing\foo")
+            self.assertEqual(ntpath.realpath(r"broken1"), ABSTFN + r"\missing\bar")
+            self.assertEqual(ntpath.realpath(r"broken1\baz"), ABSTFN + r"\missing\bar\baz")
+            self.assertEqual(ntpath.realpath("broken2"), ABSTFN + r"\missing")
+            self.assertEqual(ntpath.realpath("broken3"), ABSTFN + r"\missing")
+            self.assertEqual(ntpath.realpath("broken4"), ABSTFN + r"\missing")
+            self.assertEqual(ntpath.realpath("broken5"), ABSTFN + r"\missing")
+
+            self.assertEqual(ntpath.realpath(b"broken"), ABSTFNB + rb"\missing")
+            self.assertEqual(ntpath.realpath(rb"broken\foo"), ABSTFNB + rb"\missing\foo")
+            self.assertEqual(ntpath.realpath(rb"broken1"), ABSTFNB + rb"\missing\bar")
+            self.assertEqual(ntpath.realpath(rb"broken1\baz"), ABSTFNB + rb"\missing\bar\baz")
+            self.assertEqual(ntpath.realpath(b"broken2"), ABSTFNB + rb"\missing")
+            self.assertEqual(ntpath.realpath(rb"broken3"), ABSTFNB + rb"\missing")
+            self.assertEqual(ntpath.realpath(b"broken4"), ABSTFNB + rb"\missing")
+            self.assertEqual(ntpath.realpath(b"broken5"), ABSTFNB + rb"\missing")
+        finally:
+            os.chdir(old_path)
+            support.rmtree(ABSTFN)
+
+    @support.skip_unless_symlink
+    @unittest.skipUnless(HAVE_GETFINALPATHNAME, 'need _getfinalpathname')
+    def test_realpath_symlink_loops(self):
+        # Bug #930024, return the path unchanged if we get into an infinite
+        # symlink loop.
+        try:
+            old_path = os.path.abspath('.')
+            os.symlink(ABSTFN, ABSTFN)
+            self.assertEqual(ntpath.realpath(ABSTFN), ABSTFN)
+
+            os.symlink(ABSTFN + "1", ABSTFN + "2")
+            os.symlink(ABSTFN + "2", ABSTFN + "1")
+            self.assertEqual(ntpath.realpath(ABSTFN + "1"), ABSTFN + "1")
+            self.assertEqual(ntpath.realpath(ABSTFN + "2"), ABSTFN + "2")
+
+            self.assertEqual(ntpath.realpath(ABSTFN + "1\\x"), ABSTFN + "1\\x")
+            self.assertEqual(ntpath.realpath(ABSTFN + "1\\.."),
+                             os.path.dirname(ABSTFN))
+            self.assertEqual(ntpath.realpath(ABSTFN + "1\\..\\x"),
+                             os.path.dirname(ABSTFN) + "\\x")
+            os.symlink(ABSTFN + "x", ABSTFN + "y")
+            self.assertEqual(ntpath.realpath(ABSTFN + "1\\..\\"
+                                             + os.path.basename(ABSTFN) + "y"),
+                             ABSTFN + "x")
+            self.assertEqual(ntpath.realpath(ABSTFN + "1\\..\\"
+                                             + os.path.basename(ABSTFN) + "1"),
+                             ABSTFN + "1")
+
+            os.symlink(os.path.basename(ABSTFN) + "a\\b", ABSTFN + "a")
+            self.assertEqual(ntpath.realpath(ABSTFN + "a"), ABSTFN + "a\\b")
+
+            os.symlink("..\\" + os.path.basename(os.path.dirname(ABSTFN))
+                       + "\\" + os.path.basename(ABSTFN) + "c", ABSTFN + "c")
+            self.assertEqual(ntpath.realpath(ABSTFN + "c"), ABSTFN + "c")
+
+            # Test using relative path as well.
+            os.chdir(os.path.dirname(ABSTFN))
+            self.assertEqual(ntpath.realpath(os.path.basename(ABSTFN)), ABSTFN)
+        finally:
+            os.chdir(old_path)
+            support.unlink(ABSTFN)
+            support.unlink(ABSTFN + "1")
+            support.unlink(ABSTFN + "2")
+            support.unlink(ABSTFN + "y")
+            support.unlink(ABSTFN + "c")
+            support.unlink(ABSTFN + "a")
 
 class NtCommonTest(test_genericpath.CommonTest, unittest.TestCase):
     pathmodule = ntpath

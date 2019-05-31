@@ -354,6 +354,9 @@ the :mod:`glob` module.)
    .. versionchanged:: 3.6
       Accepts a :term:`path-like object`.
 
+   .. versionchanged:: 3.8
+      Symbolic links are now resolved on Windows.
+
 
 .. function:: relpath(path, start=os.curdir)
 
