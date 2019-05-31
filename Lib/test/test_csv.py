@@ -207,19 +207,10 @@ class Test_Csv(unittest.TestCase):
         ]
         for fields, expected, quoting in tests:
             for doublequote in [True, False]:
-                with self.subTest(
-                    fields=fields,
-                    expected=expected,
-                    quoting=quoting,
-                    doublequote=doublequote,
-                ):
-                    self._write_test(
-                        fields,
-                        expected,
-                        escapechar='/',
-                        quoting=quoting,
-                        doublequote=doublequote,
-                    )
+                with self.subTest(fields, quoting=quoting, doublequote=doublequote):
+                    self._write_test(fields, expected,
+                                     escapechar='/', quoting=quoting,
+                                     doublequote=doublequote)
 
     def test_write_iterable(self):
         self._write_test(iter(['a', 1, 'p,q']), 'a,1,"p,q"')
