@@ -189,6 +189,38 @@ class Test_Csv(unittest.TestCase):
         self._write_test(['a',1,'p,q'], 'a,1,p\\,q',
                          escapechar='\\', quoting = csv.QUOTE_NONE)
 
+    def test_write_escape_escapechar(self):
+        tests = [
+            # fields, expected output, quoting
+            (['a/', 1], '"a//",1', csv.QUOTE_MINIMAL),
+            (['a/', 1], 'a//,1', csv.QUOTE_NONE),
+            (['a/', 1], '"a//","1"', csv.QUOTE_ALL),
+            (['a/b', 1], '"a//b",1', csv.QUOTE_MINIMAL),
+            (['a/b', 1], 'a//b,1', csv.QUOTE_NONE),
+            (['a/b', 1], '"a//b","1"', csv.QUOTE_ALL),
+            (['/', 2], '"//",2', csv.QUOTE_MINIMAL),
+            (['/', 2], '//,2', csv.QUOTE_NONE),
+            (['/', 2], '"//","2"', csv.QUOTE_ALL),
+            (['a', 1, 'p/q'], 'a,1,"p//q"', csv.QUOTE_MINIMAL),
+            (['a', 1, 'p/q'], 'a,1,p//q', csv.QUOTE_NONE),
+            (['a', 1, 'p/q'], '"a","1","p//q"', csv.QUOTE_ALL),
+        ]
+        for fields, expected, quoting in tests:
+            for doublequote in [True, False]:
+                with self.subTest(
+                    fields=fields,
+                    expected=expected,
+                    quoting=quoting,
+                    doublequote=doublequote,
+                ):
+                    self._write_test(
+                        fields,
+                        expected,
+                        escapechar='/',
+                        quoting=quoting,
+                        doublequote=doublequote,
+                    )
+
     def test_write_iterable(self):
         self._write_test(iter(['a', 1, 'p,q']), 'a,1,"p,q"')
         self._write_test(iter(['a', 1, None]), 'a,1,')

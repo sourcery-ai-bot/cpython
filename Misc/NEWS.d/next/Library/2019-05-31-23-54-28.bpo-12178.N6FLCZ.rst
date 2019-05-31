@@ -1,0 +1,2 @@
+:func:`csv.writer` now correctly escapes *escapechar*.  Initial patch by
+Catalin Iacob.

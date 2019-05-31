@@ -1044,8 +1044,12 @@ join_append_data(WriterObj *self, unsigned int field_kind, void *field_data,
                     else
                         want_escape = 1;
                 }
-                if (!want_escape)
+                if (!want_escape) {
                     *quoted = 1;
+                    if (c == dialect->escapechar) {
+                        want_escape = 1;
+                    }
+                }
             }
             if (want_escape) {
                 if (!dialect->escapechar) {
