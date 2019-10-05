@@ -197,6 +197,8 @@ class Test_Csv(unittest.TestCase):
                            escapechar='\\', quoting=csv.QUOTE_NONE)
         self._write_test(['\\', 'a'], '\\\\,a',
                          escapechar='\\', quoting=csv.QUOTE_NONE)
+        self._write_test([',\\', 'a'], '",\\\\",a',
+                         escapechar='\\', quoting=csv.QUOTE_MINIMAL)
 
     def test_write_escape_escapechar(self):
         tests = [
