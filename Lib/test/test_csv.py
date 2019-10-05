@@ -124,8 +124,9 @@ class Test_Csv(unittest.TestCase):
             writer = csv.writer(fileobj, **kwargs)
             writer.writerow(fields)
             fileobj.seek(0)
-            self.assertEqual(fileobj.read(),
-                             expect + writer.dialect.lineterminator)
+            file_content = fileobj.read()
+            expected_content = expect + writer.dialect.lineterminator
+            self.assertEqual(file_content, expected_content)
 
     def _write_error_test(self, exc, fields, **kwargs):
         with TemporaryFile("w+", newline='') as fileobj:
@@ -162,46 +163,54 @@ class Test_Csv(unittest.TestCase):
     def test_write_quoting(self):
         self._write_test(['a',1,'p,q'], 'a,1,"p,q"')
         self._write_error_test(csv.Error, ['a',1,'p,q'],
-                               quoting = csv.QUOTE_NONE)
+                               quoting=csv.QUOTE_NONE)
         self._write_test(['a',1,'p,q'], 'a,1,"p,q"',
-                         quoting = csv.QUOTE_MINIMAL)
+                         quoting=csv.QUOTE_MINIMAL)
         self._write_test(['a',1,'p,q'], '"a",1,"p,q"',
-                         quoting = csv.QUOTE_NONNUMERIC)
+                         quoting=csv.QUOTE_NONNUMERIC)
         self._write_test(['a',1,'p,q'], '"a","1","p,q"',
-                         quoting = csv.QUOTE_ALL)
+                         quoting=csv.QUOTE_ALL)
         self._write_test(['a\nb',1], '"a\nb","1"',
-                         quoting = csv.QUOTE_ALL)
+                         quoting=csv.QUOTE_ALL)
 
     def test_write_escape(self):
-        self._write_test(['a',1,'p,q'], 'a,1,"p,q"',
+        self._write_test(['a', 1, 'p,q'], 'a,1,"p,q"',
                          escapechar='\\')
         self._write_error_test(csv.Error, ['a',1,'p,"q"'],
                                escapechar=None, doublequote=False)
-        self._write_test(['a',1,'p,"q"'], 'a,1,"p,\\"q\\""',
-                         escapechar='\\', doublequote = False)
+        self._write_test(['a', 1, 'p,"q"'], 'a,1,"p,\\"q\\""',
+                         escapechar='\\', doublequote=False)
         self._write_test(['"'], '""""',
-                         escapechar='\\', quoting = csv.QUOTE_MINIMAL)
+                         escapechar='\\', quoting=csv.QUOTE_MINIMAL)
         self._write_test(['"'], '\\"',
-                         escapechar='\\', quoting = csv.QUOTE_MINIMAL,
+                         escapechar='\\', quoting=csv.QUOTE_MINIMAL,
                          doublequote = False)
         self._write_test(['"'], '\\"',
-                         escapechar='\\', quoting = csv.QUOTE_NONE)
-        self._write_test(['a',1,'p,q'], 'a,1,p\\,q',
-                         escapechar='\\', quoting = csv.QUOTE_NONE)
+                         escapechar='\\', quoting=csv.QUOTE_NONE)
+        self._write_test(['a', 1, 'p,q'], 'a,1,p\\,q',
+                         escapechar='\\', quoting=csv.QUOTE_NONE)
+        self._write_test(['\\', 'a'], '"\\\\","a"',
+                         escapechar='\\', quoting=csv.QUOTE_ALL)
+        self._write_test(['\\ ', 'a'], '\\\\ ,a',
+                         escapechar='\\', quoting=csv.QUOTE_MINIMAL)
+        self._write_test(['\\,', 'a'], '\\\\\\,,a',
+                           escapechar='\\', quoting=csv.QUOTE_NONE)
+        self._write_test(['\\', 'a'], '\\\\,a',
+                         escapechar='\\', quoting=csv.QUOTE_NONE)
 
     def test_write_escape_escapechar(self):
         tests = [
             # fields, expected output, quoting
-            (['a/', 1], '"a//",1', csv.QUOTE_MINIMAL),
+            (['a/', 1], 'a//,1', csv.QUOTE_MINIMAL),
             (['a/', 1], 'a//,1', csv.QUOTE_NONE),
             (['a/', 1], '"a//","1"', csv.QUOTE_ALL),
-            (['a/b', 1], '"a//b",1', csv.QUOTE_MINIMAL),
+            (['a/b', 1], 'a//b,1', csv.QUOTE_MINIMAL),
             (['a/b', 1], 'a//b,1', csv.QUOTE_NONE),
             (['a/b', 1], '"a//b","1"', csv.QUOTE_ALL),
-            (['/', 2], '"//",2', csv.QUOTE_MINIMAL),
+            (['/', 2], '//,2', csv.QUOTE_MINIMAL),
             (['/', 2], '//,2', csv.QUOTE_NONE),
             (['/', 2], '"//","2"', csv.QUOTE_ALL),
-            (['a', 1, 'p/q'], 'a,1,"p//q"', csv.QUOTE_MINIMAL),
+            (['a', 1, 'p/q'], 'a,1,p//q', csv.QUOTE_MINIMAL),
             (['a', 1, 'p/q'], 'a,1,p//q', csv.QUOTE_NONE),
             (['a', 1, 'p/q'], '"a","1","p//q"', csv.QUOTE_ALL),
         ]
