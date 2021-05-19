@@ -59,9 +59,7 @@ def main():
 
     args = sys.argv[1:]
     iptfile = args and args[0] or "Python/graminit.c"
-    if len(args) > 1: optfile = args[1]
-    else: optfile = "Lib/keyword.py"
-
+    optfile = args[1] if len(args) > 1 else "Lib/keyword.py"
     # load the output skeleton from the target, taking care to preserve its
     # newline convention.
     with open(optfile, newline='') as fp:

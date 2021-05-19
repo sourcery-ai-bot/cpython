@@ -110,18 +110,14 @@ class LockType(object):
         aren't triggered and throw a little fit.
 
         """
-        if waitflag is None or waitflag:
+        if not self.locked_status or waitflag is None or waitflag:
             self.locked_status = True
             return True
         else:
-            if not self.locked_status:
-                self.locked_status = True
-                return True
-            else:
-                if timeout > 0:
-                    import time
-                    time.sleep(timeout)
-                return False
+            if timeout > 0:
+                import time
+                time.sleep(timeout)
+            return False
 
     __enter__ = acquire
 
@@ -158,6 +154,5 @@ def interrupt_main():
     KeyboardInterrupt upon exiting."""
     if _main:
         raise KeyboardInterrupt
-    else:
-        global _interrupt
-        _interrupt = True
+    global _interrupt
+    _interrupt = True

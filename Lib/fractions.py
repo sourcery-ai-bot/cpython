@@ -453,27 +453,26 @@ class Fraction(numbers.Rational):
         result will be rational.
 
         """
-        if isinstance(b, numbers.Rational):
-            if b.denominator == 1:
-                power = b.numerator
-                if power >= 0:
-                    return Fraction(a._numerator ** power,
-                                    a._denominator ** power,
-                                    _normalize=False)
-                elif a._numerator >= 0:
-                    return Fraction(a._denominator ** -power,
-                                    a._numerator ** -power,
-                                    _normalize=False)
-                else:
-                    return Fraction((-a._denominator) ** -power,
-                                    (-a._numerator) ** -power,
-                                    _normalize=False)
-            else:
-                # A fractional power will generally produce an
-                # irrational number.
-                return float(a) ** float(b)
-        else:
+        if not isinstance(b, numbers.Rational):
             return float(a) ** b
+
+        if b.denominator != 1:
+            # A fractional power will generally produce an
+            # irrational number.
+            return float(a) ** float(b)
+        power = b.numerator
+        if power >= 0:
+            return Fraction(a._numerator ** power,
+                            a._denominator ** power,
+                            _normalize=False)
+        elif a._numerator >= 0:
+            return Fraction(a._denominator ** -power,
+                            a._numerator ** -power,
+                            _normalize=False)
+        else:
+            return Fraction((-a._denominator) ** -power,
+                            (-a._numerator) ** -power,
+                            _normalize=False)
 
     def __rpow__(b, a):
         """a ** b"""
@@ -557,10 +556,7 @@ class Fraction(numbers.Rational):
         # _PyHASH_MODULUS, or 0 if self._denominator is divisible by
         # _PyHASH_MODULUS.
         dinv = pow(self._denominator, _PyHASH_MODULUS - 2, _PyHASH_MODULUS)
-        if not dinv:
-            hash_ = _PyHASH_INF
-        else:
-            hash_ = abs(self._numerator) * dinv % _PyHASH_MODULUS
+        hash_ = abs(self._numerator) * dinv % _PyHASH_MODULUS if dinv else _PyHASH_INF
         result = hash_ if self >= 0 else -hash_
         return -2 if result == -1 else result
 
@@ -577,7 +573,7 @@ class Fraction(numbers.Rational):
             if math.isnan(b) or math.isinf(b):
                 # comparisons with an infinity or nan should behave in
                 # the same way for any finite a, so treat a as zero.
-                return 0.0 == b
+                return b == 0.0
             else:
                 return a == a.from_float(b)
         else:

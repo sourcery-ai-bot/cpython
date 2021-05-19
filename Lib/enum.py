@@ -182,12 +182,11 @@ class EnumMeta(type):
         # sabotage -- it's on them to make sure it works correctly.  We use
         # __reduce_ex__ instead of any of the others as it is preferred by
         # pickle over __reduce__, and it handles all pickle protocols.
-        if '__reduce_ex__' not in classdict:
-            if member_type is not object:
-                methods = ('__getnewargs_ex__', '__getnewargs__',
-                        '__reduce_ex__', '__reduce__')
-                if not any(m in member_type.__dict__ for m in methods):
-                    _make_class_unpicklable(enum_class)
+        if '__reduce_ex__' not in classdict and member_type is not object:
+            methods = ('__getnewargs_ex__', '__getnewargs__',
+                    '__reduce_ex__', '__reduce__')
+            if all(m not in member_type.__dict__ for m in methods):
+                _make_class_unpicklable(enum_class)
 
         # instantiate them, checking for duplicates as we go
         # we instantiate first instead of checking for duplicates first in case
@@ -195,10 +194,7 @@ class EnumMeta(type):
         # auto-numbering ;)
         for member_name in classdict._member_names:
             value = enum_members[member_name]
-            if not isinstance(value, tuple):
-                args = (value, )
-            else:
-                args = value
+            args = (value, ) if not isinstance(value, tuple) else value
             if member_type is tuple:   # special case for tuple enums
                 args = (args, )     # wrap it one more time
             if not use_args:
@@ -208,10 +204,7 @@ class EnumMeta(type):
             else:
                 enum_member = __new__(enum_class, *args)
                 if not hasattr(enum_member, '_value_'):
-                    if member_type is object:
-                        enum_member._value_ = value
-                    else:
-                        enum_member._value_ = member_type(*args)
+                    enum_member._value_ = value if member_type is object else member_type(*args)
             value = enum_member._value_
             enum_member._name_ = member_name
             enum_member.__objclass__ = enum_class
@@ -508,11 +501,7 @@ class EnumMeta(type):
         # if a non-object.__new__ is used then whatever value/tuple was
         # assigned to the enum member name will be passed to __new__ and to the
         # new enum member's __init__
-        if __new__ is object.__new__:
-            use_args = False
-        else:
-            use_args = True
-
+        use_args = __new__ is not object.__new__
         return __new__, save_new, use_args
 
 
@@ -620,10 +609,7 @@ class Enum(metaclass=EnumMeta):
         # also, replace the __reduce_ex__ method so unpickling works in
         # previous Python versions
         module_globals = vars(sys.modules[module])
-        if source:
-            source = vars(source)
-        else:
-            source = module_globals
+        source = vars(source) if source else module_globals
         # _value2member_map_ is populated in the same order every time
         # for a consistent reverse mapping of number to name when there
         # are multiple names for the same number.
@@ -714,10 +700,10 @@ class Flag(Enum):
             return '<%s.%s: %r>' % (cls.__name__, self._name_, self._value_)
         members, uncovered = _decompose(cls, self._value_)
         return '<%s.%s: %r>' % (
-                cls.__name__,
-                '|'.join([str(m._name_ or m._value_) for m in members]),
-                self._value_,
-                )
+            cls.__name__,
+            '|'.join(str(m._name_ or m._value_) for m in members),
+            self._value_,
+        )
 
     def __str__(self):
         cls = self.__class__
@@ -728,9 +714,9 @@ class Flag(Enum):
             return '%s.%r' % (cls.__name__, members[0]._value_)
         else:
             return '%s.%s' % (
-                    cls.__name__,
-                    '|'.join([str(m._name_ or m._value_) for m in members]),
-                    )
+                cls.__name__,
+                '|'.join(str(m._name_ or m._value_) for m in members),
+            )
 
     def __bool__(self):
         return bool(self._value_)
@@ -766,8 +752,7 @@ class IntFlag(int, Flag):
     def _missing_(cls, value):
         if not isinstance(value, int):
             raise ValueError("%r is not a valid %s" % (value, cls.__name__))
-        new_member = cls._create_pseudo_member_(value)
-        return new_member
+        return cls._create_pseudo_member_(value)
 
     @classmethod
     def _create_pseudo_member_(cls, value):
@@ -802,8 +787,7 @@ class IntFlag(int, Flag):
     def __or__(self, other):
         if not isinstance(other, (self.__class__, int)):
             return NotImplemented
-        result = self.__class__(self._value_ | self.__class__(other)._value_)
-        return result
+        return self.__class__(self._value_ | self.__class__(other)._value_)
 
     def __and__(self, other):
         if not isinstance(other, (self.__class__, int)):
@@ -820,8 +804,7 @@ class IntFlag(int, Flag):
     __rxor__ = __xor__
 
     def __invert__(self):
-        result = self.__class__(~self._value_)
-        return result
+        return self.__class__(~self._value_)
 
 
 def _high_bit(value):
@@ -830,13 +813,17 @@ def _high_bit(value):
 
 def unique(enumeration):
     """Class decorator for enumerations ensuring unique member values."""
-    duplicates = []
-    for name, member in enumeration.__members__.items():
-        if name != member.name:
-            duplicates.append((name, member.name))
+    duplicates = [
+        (name, member.name)
+        for name, member in enumeration.__members__.items()
+        if name != member.name
+    ]
+
     if duplicates:
         alias_details = ', '.join(
-                ["%s -> %s" % (alias, name) for (alias, name) in duplicates])
+            "%s -> %s" % (alias, name) for (alias, name) in duplicates
+        )
+
         raise ValueError('duplicate values found in %r: %s' %
                 (enumeration, alias_details))
     return enumeration

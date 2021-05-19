@@ -231,13 +231,12 @@ class Pdb(bdb.Bdb, cmd.Cmd):
         self.rcLines = []
         while rcLines:
             line = rcLines.pop().strip()
-            if line and line[0] != '#':
-                if self.onecmd(line):
-                    # if onecmd returns True, the command wants to exit
-                    # from the interaction, save leftover rc lines
-                    # to execute before next interaction
-                    self.rcLines += reversed(rcLines)
-                    return True
+            if line and line[0] != '#' and self.onecmd(line):
+                # if onecmd returns True, the command wants to exit
+                # from the interaction, save leftover rc lines
+                # to execute before next interaction
+                self.rcLines += reversed(rcLines)
+                return True
 
     # Override Bdb methods
 
@@ -267,22 +266,24 @@ class Pdb(bdb.Bdb, cmd.Cmd):
         Returns True if the normal interaction function must be called,
         False otherwise."""
         # self.currentbp is set in bdb in Bdb.break_here if a breakpoint was hit
-        if getattr(self, "currentbp", False) and \
-               self.currentbp in self.commands:
-            currentbp = self.currentbp
-            self.currentbp = 0
-            lastcmd_back = self.lastcmd
-            self.setup(frame, None)
-            for line in self.commands[currentbp]:
-                self.onecmd(line)
-            self.lastcmd = lastcmd_back
-            if not self.commands_silent[currentbp]:
-                self.print_stack_entry(self.stack[self.curindex])
-            if self.commands_doprompt[currentbp]:
-                self._cmdloop()
-            self.forget()
-            return
-        return 1
+        if (
+            not getattr(self, "currentbp", False)
+            or self.currentbp not in self.commands
+        ):
+            return 1
+        currentbp = self.currentbp
+        self.currentbp = 0
+        lastcmd_back = self.lastcmd
+        self.setup(frame, None)
+        for line in self.commands[currentbp]:
+            self.onecmd(line)
+        self.lastcmd = lastcmd_back
+        if not self.commands_silent[currentbp]:
+            self.print_stack_entry(self.stack[self.curindex])
+        if self.commands_doprompt[currentbp]:
+            self._cmdloop()
+        self.forget()
+        return
 
     def user_return(self, frame, return_value):
         """This function is called when a return trap is set here."""
@@ -389,11 +390,9 @@ class Pdb(bdb.Bdb, cmd.Cmd):
         args = line.split()
         while args[0] in self.aliases:
             line = self.aliases[args[0]]
-            ii = 1
-            for tmpArg in args[1:]:
+            for ii, tmpArg in enumerate(args[1:], start=1):
                 line = line.replace("%" + str(ii),
                                       tmpArg)
-                ii += 1
             line = line.replace("%*", ' '.join(args[1:]))
             args = line.split()
         # split into ';;' separated commands
@@ -493,22 +492,22 @@ class Pdb(bdb.Bdb, cmd.Cmd):
         # leave them out.
         ns = self.curframe.f_globals.copy()
         ns.update(self.curframe_locals)
-        if '.' in text:
-            # Walk an attribute chain up to the last part, similar to what
-            # rlcompleter does.  This will bail if any of the parts are not
-            # simple attribute access, which is what we want.
-            dotted = text.split('.')
-            try:
-                obj = ns[dotted[0]]
-                for part in dotted[1:-1]:
-                    obj = getattr(obj, part)
-            except (KeyError, AttributeError):
-                return []
-            prefix = '.'.join(dotted[:-1]) + '.'
-            return [prefix + n for n in dir(obj) if n.startswith(dotted[-1])]
-        else:
+        if '.' not in text:
             # Complete a simple name.
             return [n for n in ns.keys() if n.startswith(text)]
+
+        # Walk an attribute chain up to the last part, similar to what
+        # rlcompleter does.  This will bail if any of the parts are not
+        # simple attribute access, which is what we want.
+        dotted = text.split('.')
+        try:
+            obj = ns[dotted[0]]
+            for part in dotted[1:-1]:
+                obj = getattr(obj, part)
+        except (KeyError, AttributeError):
+            return []
+        prefix = '.'.join(dotted[:-1]) + '.'
+        return [prefix + n for n in dir(obj) if n.startswith(dotted[-1])]
 
     # Command definitions, called by cmdloop()
     # The argument is the remaining string on the command line
@@ -848,10 +847,7 @@ class Pdb(bdb.Bdb, cmd.Cmd):
         else:
             bp.ignore = count
             if count > 0:
-                if count > 1:
-                    countstr = '%d crossings' % count
-                else:
-                    countstr = '1 crossing'
+                countstr = '%d crossings' % count if count > 1 else '1 crossing'
                 self.message('Will ignore next %s of breakpoint %d.' %
                              (countstr, bp.number))
             else:
@@ -942,10 +938,7 @@ class Pdb(bdb.Bdb, cmd.Cmd):
         except ValueError:
             self.error('Invalid frame count (%s)' % arg)
             return
-        if count < 0:
-            newframe = 0
-        else:
-            newframe = max(0, self.curindex - count)
+        newframe = 0 if count < 0 else max(0, self.curindex - count)
         self._select_frame(newframe)
     do_u = do_up
 
@@ -1284,10 +1277,7 @@ class Pdb(bdb.Bdb, cmd.Cmd):
             s = str(lineno).rjust(3)
             if len(s) < 4:
                 s += ' '
-            if lineno in breaks:
-                s += 'B'
-            else:
-                s += ' '
+            s += 'B' if lineno in breaks else ' '
             if lineno == current_lineno:
                 s += '->'
             elif lineno == exc_lineno:
@@ -1445,10 +1435,7 @@ class Pdb(bdb.Bdb, cmd.Cmd):
 
     def print_stack_entry(self, frame_lineno, prompt_prefix=line_prefix):
         frame, lineno = frame_lineno
-        if frame is self.curframe:
-            prefix = '> '
-        else:
-            prefix = '  '
+        prefix = '> ' if frame is self.curframe else '  '
         self.message(prefix +
                      self.format_stack_entry(frame_lineno, prompt_prefix))
 

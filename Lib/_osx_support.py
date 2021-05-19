@@ -41,15 +41,15 @@ def _find_executable(executable, path=None):
     if (sys.platform == 'win32') and (ext != '.exe'):
         executable = executable + '.exe'
 
-    if not os.path.isfile(executable):
-        for p in paths:
-            f = os.path.join(p, executable)
-            if os.path.isfile(f):
-                # the file exists, we have a shot at spawn working
-                return f
-        return None
-    else:
+    if os.path.isfile(executable):
         return executable
+
+    for p in paths:
+        f = os.path.join(p, executable)
+        if os.path.isfile(f):
+            # the file exists, we have a shot at spawn working
+            return f
+    return None
 
 
 def _read_output(commandstring):
@@ -334,7 +334,7 @@ def compiler_fixup(compiler_so, cc_args):
     if 'ARCHFLAGS' in os.environ and not stripArch:
         # User specified different -arch flags in the environ,
         # see also distutils.sysconfig
-        compiler_so = compiler_so + os.environ['ARCHFLAGS'].split()
+        compiler_so += os.environ['ARCHFLAGS'].split()
 
     if stripSysroot:
         while True:
@@ -494,9 +494,5 @@ def get_platform_osx(_config_vars, osname, release, machine):
         elif machine in ('PowerPC', 'Power_Macintosh'):
             # Pick a sane name for the PPC architecture.
             # See 'i386' case
-            if sys.maxsize >= 2**32:
-                machine = 'ppc64'
-            else:
-                machine = 'ppc'
-
+            machine = 'ppc64' if sys.maxsize >= 2**32 else 'ppc'
     return (osname, release, machine)

@@ -126,10 +126,7 @@ class MimeTypes:
                 # bad data URL
                 return None, None
             semi = url.find(';', 0, comma)
-            if semi >= 0:
-                type = url[:semi]
-            else:
-                type = url[:comma]
+            type = url[:semi] if semi >= 0 else url[:comma]
             if '=' in type or '/' not in type:
                 type = 'text/plain'
             return type, None           # never compressed, so encoding is None

@@ -693,10 +693,7 @@ def _compose_mro(cls, types):
     # Remove entries which are strict bases of other entries (they will end up
     # in the MRO anyway.
     def is_strict_base(typ):
-        for other in types:
-            if typ != other and typ in other.__mro__:
-                return True
-        return False
+        return any(typ != other and typ in other.__mro__ for other in types)
     types = [n for n in types if not is_strict_base(n)]
     # Subclasses of the ABCs in *types* which are also implemented by
     # *cls* can be used to stabilize ABC ordering.

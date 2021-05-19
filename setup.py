@@ -92,11 +92,7 @@ def macosx_sdk_root():
     """
     cflags = sysconfig.get_config_var('CFLAGS')
     m = re.search(r'-isysroot\s+(\S+)', cflags)
-    if m is None:
-        sysroot = '/'
-    else:
-        sysroot = m.group(1)
-    return sysroot
+    return '/' if m is None else m.group(1)
 
 def is_macosx_sdk_path(path):
     """
@@ -375,10 +371,9 @@ class PyBuildExt(build_ext):
 
     def build_extension(self, ext):
 
-        if ext.name == '_ctypes':
-            if not self.configure_ctypes(ext):
-                self.failed.append(ext.name)
-                return
+        if ext.name == '_ctypes' and not self.configure_ctypes(ext):
+            self.failed.append(ext.name)
+            return
 
         try:
             build_ext.build_extension(self, ext)
@@ -943,9 +938,7 @@ class PyBuildExt(build_ext):
             Args:
               db_ver: A tuple of the version to verify.
             """
-            if not (min_db_ver <= db_ver <= max_db_ver):
-                return False
-            return True
+            return min_db_ver <= db_ver <= max_db_ver
 
         def gen_db_minor_ver_nums(major):
             if major == 4:

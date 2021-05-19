@@ -275,12 +275,11 @@ class Maildir(Mailbox):
             'cur': os.path.join(self._path, 'cur'),
             }
         if not os.path.exists(self._path):
-            if create:
-                os.mkdir(self._path, 0o700)
-                for path in self._paths.values():
-                    os.mkdir(path, 0o700)
-            else:
+            if not create:
                 raise NoSuchMailboxError(self._path)
+            os.mkdir(self._path, 0o700)
+            for path in self._paths.values():
+                os.mkdir(path, 0o700)
         self._toc = {}
         self._toc_mtimes = {'cur': 0, 'new': 0}
         self._last_read = 0         # Records last time we read cur/new
@@ -371,10 +370,7 @@ class Maildir(Mailbox):
         """Return a Message representation or raise a KeyError."""
         subpath = self._lookup(key)
         with open(os.path.join(self._path, subpath), 'rb') as f:
-            if self._factory:
-                msg = self._factory(f)
-            else:
-                msg = MaildirMessage(f)
+            msg = self._factory(f) if self._factory else MaildirMessage(f)
         subdir, name = os.path.split(subpath)
         msg.set_subdir(subdir)
         if self.colon in name:
@@ -432,12 +428,13 @@ class Maildir(Mailbox):
 
     def list_folders(self):
         """Return a list of folder names."""
-        result = []
-        for entry in os.listdir(self._path):
-            if len(entry) > 1 and entry[0] == '.' and \
-               os.path.isdir(os.path.join(self._path, entry)):
-                result.append(entry[1:])
-        return result
+        return [
+            entry[1:]
+            for entry in os.listdir(self._path)
+            if len(entry) > 1
+            and entry[0] == '.'
+            and os.path.isdir(os.path.join(self._path, entry))
+        ]
 
     def get_folder(self, folder):
         """Return a Maildir instance for the named folder."""
@@ -936,21 +933,17 @@ class MH(Mailbox):
         """Initialize an MH instance."""
         Mailbox.__init__(self, path, factory, create)
         if not os.path.exists(self._path):
-            if create:
-                os.mkdir(self._path, 0o700)
-                os.close(os.open(os.path.join(self._path, '.mh_sequences'),
-                                 os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
-            else:
+            if not create:
                 raise NoSuchMailboxError(self._path)
+            os.mkdir(self._path, 0o700)
+            os.close(os.open(os.path.join(self._path, '.mh_sequences'),
+                             os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
         self._locked = False
 
     def add(self, message):
         """Add message and return assigned key."""
         keys = self.keys()
-        if len(keys) == 0:
-            new_key = 1
-        else:
-            new_key = max(keys) + 1
+        new_key = 1 if len(keys) == 0 else max(keys) + 1
         new_path = os.path.join(self._path, str(new_key))
         f = _create_carefully(new_path)
         closed = False
@@ -1112,11 +1105,11 @@ class MH(Mailbox):
 
     def list_folders(self):
         """Return a list of folder names."""
-        result = []
-        for entry in os.listdir(self._path):
-            if os.path.isdir(os.path.join(self._path, entry)):
-                result.append(entry)
-        return result
+        return [
+            entry
+            for entry in os.listdir(self._path)
+            if os.path.isdir(os.path.join(self._path, entry))
+        ]
 
     def get_folder(self, folder):
         """Return an MH instance for the named folder."""
@@ -1134,9 +1127,7 @@ class MH(Mailbox):
         entries = os.listdir(path)
         if entries == ['.mh_sequences']:
             os.remove(os.path.join(path, '.mh_sequences'))
-        elif entries == []:
-            pass
-        else:
+        elif entries != []:
             raise NotEmptyError('Folder not empty: %s' % self._path)
         os.rmdir(path)
 
@@ -1157,7 +1148,7 @@ class MH(Mailbox):
                             keys.update(range(start, stop + 1))
                     results[name] = [key for key in sorted(keys) \
                                          if key in all_keys]
-                    if len(results[name]) == 0:
+                    if not results[name]:
                         del results[name]
                 except ValueError:
                     raise FormatError('Invalid sequence specification: %s' %
@@ -1211,7 +1202,7 @@ class MH(Mailbox):
                     os.unlink(os.path.join(self._path, str(key)))
             prev += 1
         self._next_key = prev + 1
-        if len(changes) == 0:
+        if not changes:
             return
         for name, key_list in sequences.items():
             for old, new in changes:
@@ -1345,7 +1336,7 @@ class Babyl(_singlefileMailbox):
                                         in self._file.readline()[1:].split(b',')
                                         if label.strip()]
                 label_lists.append(labels)
-            elif line == b'\037' or line == b'\037' + linesep:
+            elif line in [b'\037', b'\037' + linesep]:
                 if len(stops) < len(starts):
                     stops.append(line_pos - len(linesep))
             elif not line:
@@ -1435,7 +1426,7 @@ class Babyl(_singlefileMailbox):
             if isinstance(message, str):
                 message = self._string_to_bytes(message)
             body_start = message.find(b'\n\n') + 2
-            if body_start - 2 != -1:
+            if body_start != 1:
                 self._file.write(message[:body_start].replace(b'\n', linesep))
                 self._file.write(b'*** EOOH ***' + linesep)
                 self._file.write(message[:body_start].replace(b'\n', linesep))
@@ -1459,12 +1450,11 @@ class Babyl(_singlefileMailbox):
                     line = line[:-1] + b'\n'
                 self._file.write(line.replace(b'\n', linesep))
                 if line == b'\n' or not line:
-                    if first_pass:
-                        first_pass = False
-                        self._file.write(b'*** EOOH ***' + linesep)
-                        message.seek(original_pos)
-                    else:
+                    if not first_pass:
                         break
+                    first_pass = False
+                    self._file.write(b'*** EOOH ***' + linesep)
+                    message.seek(original_pos)
             while True:
                 line = message.readline()
                 if not line:
@@ -1472,9 +1462,13 @@ class Babyl(_singlefileMailbox):
                 # Universal newline support.
                 if line.endswith(b'\r\n'):
                     line = line[:-2] + linesep
-                elif line.endswith(b'\r'):
-                    line = line[:-1] + linesep
-                elif line.endswith(b'\n'):
+                elif (
+                    not line.endswith(b'\r\n')
+                    and line.endswith(b'\r')
+                    or not line.endswith(b'\r\n')
+                    and not line.endswith(b'\r')
+                    and line.endswith(b'\n')
+                ):
                     line = line[:-1] + linesep
                 self._file.write(line)
         else:
@@ -1538,7 +1532,7 @@ class MaildirMessage(Message):
 
     def set_subdir(self, subdir):
         """Set subdir to 'new' or 'cur'."""
-        if subdir == 'new' or subdir == 'cur':
+        if subdir in ['new', 'cur']:
             self._subdir = subdir
         else:
             raise ValueError("subdir must be 'new' or 'cur': %s" % subdir)
@@ -1622,9 +1616,7 @@ class MaildirMessage(Message):
                 message.add_label('answered')
             if 'P' in flags:
                 message.add_label('forwarded')
-        elif isinstance(message, Message):
-            pass
-        else:
+        elif not isinstance(message, Message):
             raise TypeError('Cannot convert to specified type: %s' %
                             type(message))
 
@@ -1735,9 +1727,7 @@ class _mboxMMDFMessage(Message):
                 message.add_label('answered')
             del message['status']
             del message['x-status']
-        elif isinstance(message, Message):
-            pass
-        else:
+        elif not isinstance(message, Message):
             raise TypeError('Cannot convert to specified type: %s' %
                             type(message))
 
@@ -1767,7 +1757,7 @@ class MHMessage(Message):
     def add_sequence(self, sequence):
         """Add sequence to list of sequences including the message."""
         if isinstance(sequence, str):
-            if not sequence in self._sequences:
+            if sequence not in self._sequences:
                 self._sequences.append(sequence)
         else:
             raise TypeError('sequence type must be str: %s' % type(sequence))
@@ -1811,9 +1801,7 @@ class MHMessage(Message):
                 message.add_label('unseen')
             if 'replied' in sequences:
                 message.add_label('answered')
-        elif isinstance(message, Message):
-            pass
-        else:
+        elif not isinstance(message, Message):
             raise TypeError('Cannot convert to specified type: %s' %
                             type(message))
 
@@ -1906,9 +1894,7 @@ class BabylMessage(Message):
             message.set_visible(self.get_visible())
             for label in self.get_labels():
                 message.add_label(label)
-        elif isinstance(message, Message):
-            pass
-        else:
+        elif not isinstance(message, Message):
             raise TypeError('Cannot convert to specified type: %s' %
                             type(message))
 
@@ -1923,10 +1909,7 @@ class _ProxyFile:
     def __init__(self, f, pos=None):
         """Initialize a _ProxyFile."""
         self._file = f
-        if pos is None:
-            self._pos = f.tell()
-        else:
-            self._pos = pos
+        self._pos = f.tell() if pos is None else pos
 
     def read(self, size=None):
         """Read bytes."""

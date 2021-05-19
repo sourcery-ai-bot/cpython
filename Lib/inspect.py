@@ -316,10 +316,7 @@ def isabstract(object):
 def getmembers(object, predicate=None):
     """Return all members of an object as (name, value) pairs sorted by name.
     Optionally, only return members that satisfy a given predicate."""
-    if isclass(object):
-        mro = (object,) + getmro(object)
-    else:
-        mro = ()
+    mro = (object,) + getmro(object) if isclass(object) else ()
     results = []
     processed = set()
     names = dir(object)
@@ -803,14 +800,13 @@ def findsource(object):
                     return lines, i
                 # else add whitespace to candidate list
                 candidates.append((match.group(1), i))
-        if candidates:
-            # this will sort by whitespace, and by line number,
-            # less whitespace first
-            candidates.sort()
-            return lines, candidates[0][1]
-        else:
+        if not candidates:
             raise OSError('could not find class definition')
 
+        # this will sort by whitespace, and by line number,
+        # less whitespace first
+        candidates.sort()
+        return lines, candidates[0][1]
     if ismethod(object):
         object = object.__func__
     if isfunction(object):
@@ -1326,9 +1322,6 @@ def getcallargs(*func_and_positional, **named):
     spec = getfullargspec(func)
     args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, ann = spec
     f_name = func.__name__
-    arg2value = {}
-
-
     if ismethod(func) and func.__self__ is not None:
         # implicit 'self' (or 'cls' for classmethods) argument
         positional = (func.__self__,) + positional
@@ -1337,8 +1330,9 @@ def getcallargs(*func_and_positional, **named):
     num_defaults = len(defaults) if defaults else 0
 
     n = min(num_pos, num_args)
-    for i in range(n):
-        arg2value[args[i]] = positional[i]
+    arg2value = {args[i]: positional[i] for i in range(n)}
+
+
     if varargs:
         arg2value[varargs] = tuple(positional[n:])
     possible_kwargs = set(args + kwonlyargs)
@@ -1579,10 +1573,15 @@ def getattr_static(obj, attr, default=_sentinel):
 
     klass_result = _check_class(klass, attr)
 
-    if instance_result is not _sentinel and klass_result is not _sentinel:
-        if (_check_class(type(klass_result), '__get__') is not _sentinel and
-            _check_class(type(klass_result), '__set__') is not _sentinel):
-            return klass_result
+    if (
+        instance_result is not _sentinel
+        and klass_result is not _sentinel
+        and (
+            _check_class(type(klass_result), '__get__') is not _sentinel
+            and _check_class(type(klass_result), '__set__') is not _sentinel
+        )
+    ):
+        return klass_result
 
     if instance_result is not _sentinel:
         return instance_result
@@ -1924,7 +1923,7 @@ def _signature_strip_non_python_syntax(signature):
                     current_parameter += 1
                 continue
 
-            if string == '/':
+            elif string == '/':
                 assert not skip_next_comma
                 assert last_positional_only is None
                 skip_next_comma = True
@@ -1938,7 +1937,7 @@ def _signature_strip_non_python_syntax(signature):
 
         if delayed_comma:
             delayed_comma = False
-            if not ((type == OP) and (string == ')')):
+            if type != OP or string != ')':
                 add(', ')
         add(string)
         if (string == ','):
@@ -2132,11 +2131,7 @@ def _signature_from_function(cls, func):
     defaults = func.__defaults__
     kwdefaults = func.__kwdefaults__
 
-    if defaults:
-        pos_default_count = len(defaults)
-    else:
-        pos_default_count = 0
-
+    pos_default_count = len(defaults) if defaults else 0
     parameters = []
 
     # Non-keyword-only parameters w/o defaults.
@@ -2264,12 +2259,11 @@ def _signature_from_callable(obj, *,
                 # First argument of the wrapped callable is `*args`, as in
                 # `partialmethod(lambda *args)`.
                 return sig
-            else:
-                sig_params = tuple(sig.parameters.values())
-                assert (not sig_params or
-                        first_wrapped_param is not sig_params[0])
-                new_params = (first_wrapped_param,) + sig_params
-                return sig.replace(parameters=new_params)
+            sig_params = tuple(sig.parameters.values())
+            assert (not sig_params or
+                    first_wrapped_param is not sig_params[0])
+            new_params = (first_wrapped_param,) + sig_params
+            return sig.replace(parameters=new_params)
 
     if isfunction(obj) or _signature_is_functionlike(obj):
         # If it's a pure Python function, or an object that is duck type
@@ -2463,11 +2457,10 @@ class Parameter:
             self._kind = _ParameterKind(kind)
         except ValueError:
             raise ValueError(f'value {kind!r} is not a valid Parameter.kind')
-        if default is not _empty:
-            if self._kind in (_VAR_POSITIONAL, _VAR_KEYWORD):
-                msg = '{} parameters cannot have default values'
-                msg = msg.format(self._kind.description)
-                raise ValueError(msg)
+        if default is not _empty and self._kind in (_VAR_POSITIONAL, _VAR_KEYWORD):
+            msg = '{} parameters cannot have default values'
+            msg = msg.format(self._kind.description)
+            raise ValueError(msg)
         self._default = default
         self._annotation = annotation
 
@@ -2705,9 +2698,7 @@ class BoundArguments:
         return {'_signature': self._signature, 'arguments': self.arguments}
 
     def __repr__(self):
-        args = []
-        for arg, value in self.arguments.items():
-            args.append('{}={!r}'.format(arg, value))
+        args = ['{}={!r}'.format(arg, value) for arg, value in self.arguments.items()]
         return '<{} ({})>'.format(self.__class__.__name__, ', '.join(args))
 
 
@@ -2933,8 +2924,7 @@ class Signature:
                         # We have an '*args'-like argument, let's fill it with
                         # all positional arguments we have left and move on to
                         # the next phase
-                        values = [arg_val]
-                        values.extend(arg_vals)
+                        values = [arg_val, *arg_vals]
                         arguments[param.name] = tuple(values)
                         break
 

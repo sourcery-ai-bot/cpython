@@ -769,7 +769,7 @@ class _BaseNetwork(_IPAddressBase):
             ValueError: If other is not completely contained by self.
 
         """
-        if not self._version == other._version:
+        if self._version != other._version:
             raise TypeError("%s and %s are not of the same version" % (
                              self, other))
 
@@ -1209,10 +1209,7 @@ class _BaseV4:
             except ValueError:
                 # Found something that isn't an integer or isn't valid
                 return False
-            for idx, y in enumerate(mask):
-                if idx > 0 and y > mask[idx - 1]:
-                    return False
-            return True
+            return not any(idx > 0 and y > mask[idx - 1] for idx, y in enumerate(mask))
         try:
             netmask = int(netmask)
         except ValueError:
@@ -1236,9 +1233,7 @@ class _BaseV4:
             return False
         if len(parts) != len(bits):
             return False
-        if parts[0] < parts[-1]:
-            return True
-        return False
+        return parts[0] < parts[-1]
 
     def _reverse_pointer(self):
         """Return the reverse DNS pointer name for the IPv4 address.
@@ -1386,11 +1381,7 @@ class IPv4Interface(IPv4Address):
 
         if isinstance(address, tuple):
             IPv4Address.__init__(self, address[0])
-            if len(address) > 1:
-                self._prefixlen = int(address[1])
-            else:
-                self._prefixlen = self._max_prefixlen
-
+            self._prefixlen = int(address[1]) if len(address) > 1 else self._max_prefixlen
             self.network = IPv4Network(address, strict=False)
             self.netmask = self.network.netmask
             self.hostmask = self.network.hostmask
@@ -1550,9 +1541,10 @@ class IPv4Network(_BaseV4, _BaseNetwork):
             iana-ipv4-special-registry.
 
         """
-        return (not (self.network_address in IPv4Network('100.64.0.0/10') and
-                    self.broadcast_address in IPv4Network('100.64.0.0/10')) and
-                not self.is_private)
+        return (
+            self.network_address not in IPv4Network('100.64.0.0/10')
+            or self.broadcast_address not in IPv4Network('100.64.0.0/10')
+        ) and not self.is_private
 
 
 class _IPv4Constants:
@@ -2063,10 +2055,7 @@ class IPv6Interface(IPv6Address):
             return
         if isinstance(address, tuple):
             IPv6Address.__init__(self, address[0])
-            if len(address) > 1:
-                self._prefixlen = int(address[1])
-            else:
-                self._prefixlen = self._max_prefixlen
+            self._prefixlen = int(address[1]) if len(address) > 1 else self._max_prefixlen
             self.network = IPv6Network(address, strict=False)
             self.netmask = self.network.netmask
             self.hostmask = self.network.hostmask

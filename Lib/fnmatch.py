@@ -81,21 +81,21 @@ def translate(pat):
     res = ''
     while i < n:
         c = pat[i]
-        i = i+1
+        i += 1
         if c == '*':
-            res = res + '.*'
+            res += '.*'
         elif c == '?':
-            res = res + '.'
+            res += '.'
         elif c == '[':
             j = i
             if j < n and pat[j] == '!':
-                j = j+1
+                j += 1
             if j < n and pat[j] == ']':
-                j = j+1
+                j += 1
             while j < n and pat[j] != ']':
-                j = j+1
+                j += 1
             if j >= n:
-                res = res + '\\['
+                res += '\\['
             else:
                 stuff = pat[i:j]
                 if '--' not in stuff:
@@ -124,5 +124,5 @@ def translate(pat):
                     stuff = '\\' + stuff
                 res = '%s[%s]' % (res, stuff)
         else:
-            res = res + re.escape(c)
+            res += re.escape(c)
     return r'(?s:%s)\Z' % res

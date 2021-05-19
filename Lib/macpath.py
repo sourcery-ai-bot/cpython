@@ -88,7 +88,7 @@ def split(s):
     for i in range(len(s)):
         if s[i:i+1] == colon: col = i + 1
     path, file = s[:col-1], s[col:]
-    if path and not colon in path:
+    if path and colon not in path:
         path = path + colon
     return path, file
 
@@ -167,14 +167,13 @@ def normpath(s):
     i = 1
     while i < len(comps)-1:
         if not comps[i] and comps[i-1]:
-            if i > 1:
-                del comps[i-1:i+1]
-                i = i - 1
-            else:
+            if i <= 1:
                 # best way to handle this is to raise an exception
                 raise norm_error('Cannot use :: immediately after volume name')
+            del comps[i-1:i+1]
+            i -= 1
         else:
-            i = i + 1
+            i += 1
 
     s = colon.join(comps)
 
@@ -186,10 +185,7 @@ def normpath(s):
 def abspath(path):
     """Return an absolute path."""
     if not isabs(path):
-        if isinstance(path, bytes):
-            cwd = os.getcwdb()
-        else:
-            cwd = os.getcwd()
+        cwd = os.getcwdb() if isinstance(path, bytes) else os.getcwd()
         path = join(cwd, path)
     return normpath(path)
 
